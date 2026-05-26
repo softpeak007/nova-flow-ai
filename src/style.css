@@ -490,6 +490,17 @@ iframe {
   background: rgba(255, 255, 255, 0.08);
 }
 
+select.form-control {
+  background-color: #111827 !important;
+  color: white !important;
+  cursor: pointer;
+}
+
+select.form-control option {
+  background-color: #111827 !important;
+  color: white !important;
+}
+
 .modal-toggle-link {
   color: var(--glow-cyan);
   text-decoration: none;
