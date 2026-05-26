@@ -43,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let selectedNode = null;
   let offset = { x: 0, y: 0 };
   let crmSearchQuery = "";
+  let showCampaignDeleteButtons = false;
 
   // Phase 2 State Management
   let funnelsData = [];
@@ -649,9 +650,11 @@ document.addEventListener("DOMContentLoaded", () => {
               Launch Campaign
             </button>
           ` : ''}
-          <button class="btn secondary" style="flex: 1; padding:10px; font-size:12px; border-color:#ff4ecd; color:#ff4ecd; box-shadow: none;" onclick="window.deleteCampaign('${c.id}')">
-            Delete
-          </button>
+          ${showCampaignDeleteButtons ? `
+            <button class="btn secondary" style="flex: 1; padding:10px; font-size:12px; border-color:#ff4ecd; color:#ff4ecd; box-shadow: none;" onclick="window.deleteCampaign('${c.id}')">
+              Delete
+            </button>
+          ` : ''}
         </div>
       </div>
     `).join("");
@@ -732,6 +735,24 @@ document.addEventListener("DOMContentLoaded", () => {
         await syncAllData();
         renderAllViews();
       }
+    });
+  }
+
+  // Toggle Campaign Delete Options visibility
+  const btnToggleCampaignDelete = document.getElementById("btn-toggle-campaign-delete");
+  if (btnToggleCampaignDelete) {
+    btnToggleCampaignDelete.addEventListener("click", () => {
+      showCampaignDeleteButtons = !showCampaignDeleteButtons;
+      if (showCampaignDeleteButtons) {
+        btnToggleCampaignDelete.textContent = "Hide Delete Options 👁️";
+        btnToggleCampaignDelete.style.background = "#ff4ecd";
+        btnToggleCampaignDelete.style.color = "white";
+      } else {
+        btnToggleCampaignDelete.textContent = "Show Delete Options ❌";
+        btnToggleCampaignDelete.style.background = "transparent";
+        btnToggleCampaignDelete.style.color = "#ff4ecd";
+      }
+      renderWhatsAppTab();
     });
   }
 
