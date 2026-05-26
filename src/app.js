@@ -211,15 +211,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const emailEl = document.getElementById("user-display-email");
       const avatarEl = document.getElementById("avatar-letter");
       
-      if (nameEl) nameEl.textContent = profile.organization_name || "Stitch Automations Corp";
-      if (emailEl) emailEl.textContent = userSession.email;
-      if (avatarEl) avatarEl.textContent = (profile.organization_name || "S").charAt(0).toUpperCase();
+      const currentProfile = Array.isArray(profile) ? profile[0] : profile;
+      if (currentProfile) {
+        if (nameEl) nameEl.textContent = currentProfile.organization_name || "Stitch Automations Corp";
+        if (emailEl) emailEl.textContent = userSession.email;
+        if (avatarEl) avatarEl.textContent = (currentProfile.organization_name || "S").charAt(0).toUpperCase();
+      }
     }
     
     if (sub) {
-      subscriptionData = sub;
+      const currentSub = Array.isArray(sub) ? sub[0] : sub;
+      subscriptionData = currentSub || {};
       const planEl = document.getElementById("user-display-plan");
-      if (planEl) planEl.textContent = sub.plan_tier || "Free";
+      if (planEl) planEl.textContent = subscriptionData.plan_tier || "Free";
     }
   };
 
@@ -639,11 +643,16 @@ document.addEventListener("DOMContentLoaded", () => {
           <div>Read Rate: <strong style="color:#00eaff;">${c.read_count}</strong></div>
         </div>
 
-        ${c.status === "Draft" ? `
-          <button class="btn" style="width:100%; margin-top:16px; padding:10px; font-size:12px;" onclick="window.triggerCampaignLaunch('${c.id}')">
-            Launch Broadcast Campaign
+        <div style="display:flex; gap: 10px; margin-top:16px;">
+          ${c.status === "Draft" ? `
+            <button class="btn" style="flex: 2; padding:10px; font-size:12px;" onclick="window.triggerCampaignLaunch('${c.id}')">
+              Launch Campaign
+            </button>
+          ` : ''}
+          <button class="btn secondary" style="flex: 1; padding:10px; font-size:12px; border-color:#ff4ecd; color:#ff4ecd; box-shadow: none;" onclick="window.deleteCampaign('${c.id}')">
+            Delete
           </button>
-        ` : ''}
+        </div>
       </div>
     `).join("");
   };
@@ -674,6 +683,17 @@ document.addEventListener("DOMContentLoaded", () => {
       await syncAllData();
       renderAllViews();
     }, 3000);
+  };
+
+  window.deleteCampaign = async (id) => {
+    const { error } = await db.from("whatsapp_campaigns").delete().eq("id", id);
+    if (error) {
+      showToast("Error deleting campaign: " + error.message);
+    } else {
+      showToast("Campaign broadcast deleted successfully.");
+      await syncAllData();
+      renderAllViews();
+    }
   };
 
   // WhatsApp Campaign Form Listeners
@@ -721,14 +741,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!listWrapper) return;
     
     listWrapper.innerHTML = workflowsData.map(wf => `
-      <div class="activity-item" style="padding:12px; cursor:pointer; background:rgba(255,255,255,0.02); border: 1px solid ${wf.id === selectedWorkflowId ? 'rgba(0,234,255,0.3)' : 'rgba(255,255,255,0.05)'}; border-radius:12px;" onclick="window.selectWorkflow('${wf.id}')">
-        <div style="display:flex; flex-direction:column; gap:4px; width:100%;">
+      <div class="activity-item" style="padding:12px; cursor:pointer; background:rgba(255,255,255,0.02); border: 1px solid ${wf.id === selectedWorkflowId ? 'rgba(0,234,255,0.3)' : 'rgba(255,255,255,0.05)'}; border-radius:12px; position: relative;" onclick="window.selectWorkflow('${wf.id}')">
+        <div style="display:flex; flex-direction:column; gap:4px; width:100%; padding-right: 20px;">
           <div style="display:flex; justify-content:space-between;">
             <strong style="color: ${wf.id === selectedWorkflowId ? '#00eaff' : 'white'};">${wf.name}</strong>
             <span style="font-size:10px; color:${wf.is_active ? '#00eaff' : '#64748b'};">${wf.is_active ? 'Active' : 'Paused'}</span>
           </div>
           <span style="font-size:11px; color:#64748b;">Telemetry Executions: ${wf.execution_count}</span>
         </div>
+        <span style="position: absolute; right: 12px; top: 12px; cursor: pointer; color: #ff4ecd; font-weight: bold; font-size: 16px; z-index: 10;" onclick="event.stopPropagation(); window.deleteWorkflow('${wf.id}')">×</span>
       </div>
     `).join("") || `<div>No active automation systems.</div>`;
     
@@ -899,6 +920,20 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast("Workflow pipeline node deleted.");
     await syncAllData();
     renderAllViews();
+  };
+
+  window.deleteWorkflow = async (id) => {
+    const { error } = await db.from("workflows").delete().eq("id", id);
+    if (error) {
+      showToast("Error deleting workflow: " + error.message);
+    } else {
+      showToast("Workflow pipeline deleted successfully.");
+      if (selectedWorkflowId === id) {
+        selectedWorkflowId = null;
+      }
+      await syncAllData();
+      renderAllViews();
+    }
   };
 
   // Workflow Toolbar / Creation Listeners
@@ -1180,9 +1215,14 @@ document.addEventListener("DOMContentLoaded", () => {
             <div>Students: <strong style="color:#22c55e;">${crs.student_count}</strong></div>
           </div>
           
-          <button class="btn secondary" style="width:100%; margin-top:16px; padding:8px; font-size:11px;" onclick="window.manageCourseLessons('${crs.id}')">
-            Manage Video Lectures
-          </button>
+          <div style="display:flex; gap:10px; margin-top:16px;">
+            <button class="btn secondary" style="flex:2; padding:8px; font-size:11px;" onclick="window.manageCourseLessons('${crs.id}')">
+              Manage Lectures
+            </button>
+            <button class="btn secondary" style="flex:1; padding:8px; font-size:11px; border-color:#ff4ecd; color:#ff4ecd; box-shadow: none;" onclick="window.deleteCourse('${crs.id}')">
+              Delete
+            </button>
+          </div>
         </div>
       `;
     }).join("") || `<div style="text-align:center; color:#64748b; padding:40px;">No active training courses hosted yet.</div>`;
@@ -1246,6 +1286,17 @@ document.addEventListener("DOMContentLoaded", () => {
         renderAllViews();
       }
     });
+  };
+
+  window.deleteCourse = async (id) => {
+    const { error } = await db.from("courses").delete().eq("id", id);
+    if (error) {
+      showToast("Error deleting course: " + error.message);
+    } else {
+      showToast("LMS course deleted successfully.");
+      await syncAllData();
+      renderAllViews();
+    }
   };
 
   // --- 11. COMMUNITY FORUMS TAB ---
@@ -1350,7 +1401,12 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="badge-status ${app.status === 'Scheduled' ? 'new' : app.status === 'Completed' ? 'qualified' : 'closed'}">${app.status}</span>
         </td>
         <td>
-          <button class="btn secondary" style="padding:4px 8px; font-size:10px;" onclick="window.cancelAppointment('${app.id}')">Cancel</button>
+          <div style="display:flex; gap:6px;">
+            ${app.status === 'Scheduled' ? `
+              <button class="btn secondary" style="padding:4px 8px; font-size:10px;" onclick="window.cancelAppointment('${app.id}')">Cancel</button>
+            ` : ''}
+            <button class="btn secondary" style="padding:4px 8px; font-size:10px; border-color:#ff4ecd; color:#ff4ecd; box-shadow: none;" onclick="window.deleteAppointment('${app.id}')">Delete</button>
+          </div>
         </td>
       </tr>
     `).join("") || `
@@ -1417,6 +1473,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (error) showToast("Error cancelling: " + error.message);
     else {
       showToast("Calendar appointment slot cancelled.");
+      await syncAllData();
+      renderAllViews();
+    }
+  };
+
+  window.deleteAppointment = async (id) => {
+    const { error } = await db.from("appointments").delete().eq("id", id);
+    if (error) {
+      showToast("Error deleting slot: " + error.message);
+    } else {
+      showToast("Calendar booking slot deleted.");
       await syncAllData();
       renderAllViews();
     }
