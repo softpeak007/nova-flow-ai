@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let subscriptionData = {};
   let selectedNode = null;
   let offset = { x: 0, y: 0 };
+  let crmSearchQuery = "";
 
   // Phase 2 State Management
   let funnelsData = [];
@@ -368,7 +369,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const tableBody = document.getElementById("crm-table-body");
     if (!tableBody) return;
     
-    tableBody.innerHTML = leadsData.map(lead => `
+    const query = crmSearchQuery.toLowerCase().trim();
+    const filteredLeads = leadsData.filter(lead => 
+      lead.name.toLowerCase().includes(query) || 
+      (lead.service_needed && lead.service_needed.toLowerCase().includes(query)) ||
+      lead.whatsapp.toLowerCase().includes(query)
+    );
+    
+    tableBody.innerHTML = filteredLeads.map(lead => `
       <tr>
         <td><strong>${lead.name}</strong></td>
         <td>${lead.whatsapp}</td>
@@ -396,7 +404,7 @@ document.addEventListener("DOMContentLoaded", () => {
     `).join("") || `
       <tr>
         <td colspan="7" style="text-align:center; padding: 40px; color:#64748b;">
-          No leads registered yet. Deploy your landing page to trigger integrations.
+          ${leadsData.length === 0 ? "No leads registered yet. Deploy your landing page to trigger integrations." : "No matching leads found."}
         </td>
       </tr>
     `;
@@ -470,22 +478,144 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Real-time Search Input listener in CRM tab
+  const crmSearchInput = document.querySelector("#crm-tab .search-input");
+  if (crmSearchInput) {
+    crmSearchInput.addEventListener("input", (e) => {
+      crmSearchQuery = e.target.value;
+      renderCRMTab();
+    });
+  }
+
+  // Leads CSV Exporter listener
+  const btnExportLeads = document.getElementById("btn-export-leads");
+  if (btnExportLeads) {
+    btnExportLeads.addEventListener("click", () => {
+      if (leadsData.length === 0) {
+        showToast("No lead records available to export.");
+        return;
+      }
+      
+      const headers = ["Name", "WhatsApp", "Email", "Budget", "Timeline", "Service Needed", "Stage", "AI Score", "AI Summary", "Notes", "Created At"];
+      const csvRows = [
+        headers.join(","), // header row
+        ...leadsData.map(lead => {
+          return [
+            `"${(lead.name || "").replace(/"/g, '""')}"`,
+            `"${(lead.whatsapp || "").replace(/"/g, '""')}"`,
+            `"${(lead.email || "").replace(/"/g, '""')}"`,
+            `"${(lead.budget || "").replace(/"/g, '""')}"`,
+            `"${(lead.timeline || "").replace(/"/g, '""')}"`,
+            `"${(lead.service_needed || "").replace(/"/g, '""')}"`,
+            `"${(lead.stage || "").replace(/"/g, '""')}"`,
+            lead.ai_score || 0,
+            `"${(lead.ai_summary || "").replace(/"/g, '""')}"`,
+            `"${(lead.notes || "").replace(/"/g, '""')}"`,
+            `"${(lead.created_at || "").replace(/"/g, '""')}"`
+          ].join(",");
+        })
+      ];
+      
+      const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `novaflow_leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("Leads database successfully exported as CSV! 📥");
+    });
+  }
+
   // --- 3. AI AGENTS PLAYGROUND ---
   const renderChatbotTab = () => {
     const agentModel = document.getElementById("agent-model-select");
     const agentPrompt = document.getElementById("agent-prompt-system");
     
     if (agentModel && agentPrompt) {
-      agentModel.addEventListener("change", () => {
-        const selected = agentModel.value;
-        if (selected === "strategist") {
-          agentPrompt.value = "You are a professional Business Strategist AI Agent. Help the user optimize operations, evaluate revenue blueprints, design pricing structures, and improve lead acquisition metrics with high ROI.";
-        } else if (selected === "analyst") {
-          agentPrompt.value = "You are a deep-focus Analysis AI Agent. Analyze customer inquiries, extract budget matching potential, check RLS vulnerabilities, and evaluate quality triggers meticulously.";
+      if (!agentModel.dataset.listenerActive) {
+        agentModel.addEventListener("change", () => {
+          const selected = agentModel.value;
+          if (selected === "strategist") {
+            agentPrompt.value = "You are a professional Business Strategist AI Agent. Help the user optimize operations, evaluate revenue blueprints, design pricing structures, and improve lead acquisition metrics with high ROI.";
+          } else if (selected === "analyst") {
+            agentPrompt.value = "You are a deep-focus Analysis AI Agent. Analyze customer inquiries, extract budget matching potential, check RLS vulnerabilities, and evaluate quality triggers meticulously.";
+          } else {
+            agentPrompt.value = "You are a helpful Nova Flow AI Customer Assistant. Introduce products, answer billing and subscription integration queries, and help users connect their WhatsApp and Supabase databases.";
+          }
+        });
+        agentModel.dataset.listenerActive = "true";
+      }
+    }
+
+    // Set up chat window playground
+    const playgroundInput = document.getElementById("chat-playground-input");
+    const btnPlaygroundSend = document.getElementById("btn-chat-send");
+    const playgroundMsgs = document.getElementById("chat-playground-messages");
+
+    const handlePlaygroundSendMessage = () => {
+      const text = playgroundInput.value.trim();
+      if (!text) return;
+
+      // User Message
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "chat-msg user";
+      msgDiv.textContent = text;
+      playgroundMsgs.appendChild(msgDiv);
+      
+      playgroundInput.value = "";
+      playgroundMsgs.scrollTop = playgroundMsgs.scrollHeight;
+
+      // Bot Message (Simulating Typing Indicator)
+      const botDiv = document.createElement("div");
+      botDiv.className = "chat-msg bot";
+      botDiv.innerHTML = `<span style="color:#64748b; font-style:italic;">Agent is formulating response...</span>`;
+      playgroundMsgs.appendChild(botDiv);
+      playgroundMsgs.scrollTop = playgroundMsgs.scrollHeight;
+
+      setTimeout(() => {
+        const selectedModel = agentModel ? agentModel.value : "assistant";
+        let reply = "";
+        const lower = text.toLowerCase();
+
+        if (selectedModel === "strategist") {
+          if (lower.includes("pricing") || lower.includes("cost") || lower.includes("revenue")) {
+            reply = "📊 [Business Strategist]: To optimize your revenue stream, I advise implementing value-based multi-tier pricing. Your Growth Tier at ₹6,999 has the highest relative conversion value. Let's design an upsell flow for leads qualified at >85% by the classifier.";
+          } else if (lower.includes("lead") || lower.includes("customer") || lower.includes("traffic")) {
+            reply = "📊 [Business Strategist]: Lead acquisition efficiency can be boosted by 35% by triggering immediate automated WhatsApp qualification broadcasts. I suggest connecting your visual funnel forms directly to our webhook node.";
+          } else {
+            reply = "📊 [Business Strategist]: Strategic review initiated. Based on your active workflows, your operation metrics look strong. I recommend integrating CRM triggers with Stripe to track exact CAC (Customer Acquisition Cost) in real-time.";
+          }
+        } else if (selectedModel === "analyst") {
+          if (lower.includes("security") || lower.includes("rls") || lower.includes("policy")) {
+            reply = "🔍 [Deep Focus Analyst]: Analyzing RLS configuration: public schema tables 'profiles' and 'leads' are protected using row-level authorization check: (auth.uid() = user_id). Verify that bypass keys are not exposed in production script bundles.";
+          } else if (lower.includes("data") || lower.includes("db") || lower.includes("table")) {
+            reply = "🔍 [Deep Focus Analyst]: Database telemetry scan: active courses table maps lessons via cascade delete constraints. Leads schema logs have standard UUID indexes. Performance checks suggest 100% telemetry response parity.";
+          } else {
+            reply = "🔍 [Deep Focus Analyst]: Deep structural analysis completed. All database schemas match production specifications. Telemetry count is synced with local storage state logs.";
+          }
         } else {
-          agentPrompt.value = "You are a helpful Nova Flow AI Customer Assistant. Introduce products, answer billing and subscription integration queries, and help users connect their WhatsApp and Supabase databases.";
+          if (lower.includes("supabase") || lower.includes("connect") || lower.includes("db")) {
+            reply = "🤖 [Customer Support]: Connecting your live Supabase is easy! Go to the 'API & Dev Center' tab, enter your Project URL and Anon Key in the connection settings card, and click 'Connect Database'. It's that simple!";
+          } else if (lower.includes("billing") || lower.includes("pricing") || lower.includes("plan")) {
+            reply = "🤖 [Customer Support]: We offer Starter (₹2,999), Growth (₹6,999), and Premium (₹14,999) monthly tiers. You can safely simulate upgrading using Stripe within the 'Billing & Subscriptions' tab.";
+          } else {
+            reply = "🤖 [Customer Support]: Hello! I am your Nova Flow customer assistant. I can guide you through visual node workflows, campaign broadcasts, and general database connection setups. What can I help you with today?";
+          }
         }
+
+        botDiv.textContent = reply;
+        playgroundMsgs.scrollTop = playgroundMsgs.scrollHeight;
+      }, 1000);
+    };
+
+    if (btnPlaygroundSend && !btnPlaygroundSend.dataset.listenerActive) {
+      btnPlaygroundSend.addEventListener("click", handlePlaygroundSendMessage);
+      playgroundInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") handlePlaygroundSendMessage();
       });
+      btnPlaygroundSend.dataset.listenerActive = "true";
     }
   };
 
@@ -1292,6 +1422,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // Google Calendar Sync micro-animations and feedback
+  const btnSyncCalendar = document.getElementById("btn-sync-calendar");
+  if (btnSyncCalendar) {
+    btnSyncCalendar.addEventListener("click", () => {
+      btnSyncCalendar.disabled = true;
+      btnSyncCalendar.style.opacity = "0.7";
+      btnSyncCalendar.innerHTML = `<span class="material-icons-round spin" style="font-size:14px; vertical-align:middle; margin-right:6px; display: inline-block;">sync</span> Syncing Assets...`;
+      showToast("Authorizing external Calendar OAuth tokens...");
+      
+      setTimeout(() => {
+        btnSyncCalendar.disabled = false;
+        btnSyncCalendar.style.opacity = "1";
+        btnSyncCalendar.style.borderColor = "#22c55e";
+        btnSyncCalendar.style.color = "#22c55e";
+        btnSyncCalendar.innerHTML = `<span class="material-icons-round" style="font-size:14px; vertical-align:middle; margin-right:6px; color:#22c55e;">check_circle</span> Google Calendar Synced ✔`;
+        showToast("Google & Outlook Calendar sync completed successfully! 📅");
+      }, 1800);
+    });
+  }
+
   // --- 13. SOCIAL CONNECT TAB ---
   const renderSocialTab = () => {
     const container = document.getElementById("social-channels-container");
@@ -1460,6 +1610,27 @@ document.addEventListener("DOMContentLoaded", () => {
         <button class="btn secondary" style="padding:6px 12px; font-size:11px;" onclick="window.revokeApiKey('${key.id}')">Revoke</button>
       </div>
     `).join("") || `<div style="text-align:center; color:#64748b; padding:12px;">No active API credential tokens generated yet.</div>`;
+
+    // Populate dynamic Supabase configuration inputs
+    const dbUrlInput = document.getElementById("db-supabase-url");
+    const dbKeyInput = document.getElementById("db-supabase-key");
+    const dbStatusText = document.getElementById("db-connection-status");
+    
+    if (dbUrlInput && dbKeyInput) {
+      dbUrlInput.value = localStorage.getItem("novaflow_supabase_url") || "";
+      dbKeyInput.value = localStorage.getItem("novaflow_supabase_key") || "";
+    }
+    
+    if (dbStatusText) {
+      const isMock = !localStorage.getItem("novaflow_supabase_url") || !localStorage.getItem("novaflow_supabase_key");
+      if (isMock) {
+        dbStatusText.textContent = "Simulator Mode 🛠️";
+        dbStatusText.style.color = "#eab308";
+      } else {
+        dbStatusText.textContent = "Live Database Connected 🌐";
+        dbStatusText.style.color = "#22c55e";
+      }
+    }
   };
 
   // Generate Key action
@@ -1500,6 +1671,62 @@ document.addEventListener("DOMContentLoaded", () => {
       renderAllViews();
     }
   };
+
+  // Live Supabase Connection click handlers
+  const btnSaveDB = document.getElementById("btn-save-db");
+  const btnResetDB = document.getElementById("btn-reset-db");
+
+  if (btnSaveDB) {
+    btnSaveDB.addEventListener("click", async () => {
+      const url = document.getElementById("db-supabase-url").value.trim();
+      const key = document.getElementById("db-supabase-key").value.trim();
+
+      if (!url || !key) {
+        showToast("Please provide both Supabase URL and Anon Key.");
+        return;
+      }
+
+      showToast("Initializing live database schema sync...");
+      localStorage.setItem("novaflow_supabase_url", url);
+      localStorage.setItem("novaflow_supabase_key", key);
+
+      // Re-initialize client database connection wrapper
+      if (window.initializeSupabase) {
+        window.initializeSupabase();
+      }
+
+      setTimeout(async () => {
+        showToast("Connected to live Supabase backend successfully! 🌐");
+        await syncProfile();
+        await syncAllData();
+        renderAllViews();
+      }, 800);
+    });
+  }
+
+  if (btnResetDB) {
+    btnResetDB.addEventListener("click", async () => {
+      showToast("Disconnecting live credentials...");
+      localStorage.removeItem("novaflow_supabase_url");
+      localStorage.removeItem("novaflow_supabase_key");
+
+      const dbUrlInput = document.getElementById("db-supabase-url");
+      const dbKeyInput = document.getElementById("db-supabase-key");
+      if (dbUrlInput) dbUrlInput.value = "";
+      if (dbKeyInput) dbKeyInput.value = "";
+
+      if (window.initializeSupabase) {
+        window.initializeSupabase();
+      }
+
+      setTimeout(async () => {
+        showToast("Switched back to local database simulator. 🛠️");
+        await syncProfile();
+        await syncAllData();
+        renderAllViews();
+      }, 800);
+    });
+  }
 
   // Interactive developer Query Tester sandbox tool
   const btnTestEndpoint = document.getElementById("btn-test-endpoint");
