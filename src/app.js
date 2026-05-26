@@ -44,6 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let offset = { x: 0, y: 0 };
   let crmSearchQuery = "";
   let showCampaignDeleteButtons = false;
+  let workflowCanvasZoom = 1.0;
 
   // Phase 2 State Management
   let funnelsData = [];
@@ -854,12 +855,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const shiftY = e.clientY - rect.top;
 
         const onMouseMove = (moveEvent) => {
-          let x = moveEvent.clientX - canvasRect.left - shiftX;
-          let y = moveEvent.clientY - canvasRect.top - shiftY;
+          let x = (moveEvent.clientX - canvasRect.left - shiftX) / workflowCanvasZoom;
+          let y = (moveEvent.clientY - canvasRect.top - shiftY) / workflowCanvasZoom;
 
-          // Constraints
-          x = Math.max(10, Math.min(x, canvasRect.width - rect.width - 10));
-          y = Math.max(10, Math.min(y, canvasRect.height - rect.height - 10));
+          // Constraints adjusted by scale factor
+          const maxLimitX = (canvasRect.width - rect.width) / workflowCanvasZoom;
+          const maxLimitY = (canvasRect.height - rect.height) / workflowCanvasZoom;
+          x = Math.max(10, Math.min(x, maxLimitX - 10));
+          y = Math.max(10, Math.min(y, maxLimitY - 10));
 
           nodeEl.style.left = `${x}px`;
           nodeEl.style.top = `${y}px`;
@@ -1014,6 +1017,46 @@ document.addEventListener("DOMContentLoaded", () => {
           window.selectWorkflow(data[0].id);
         }
       }
+    });
+  }
+
+  // Visual Workflow Canvas Zooming Controls
+  const btnZoomIn = document.getElementById("btn-zoom-in");
+  const btnZoomOut = document.getElementById("btn-zoom-out");
+  const btnZoomReset = document.getElementById("btn-zoom-reset");
+  const zoomLevelText = document.getElementById("zoom-level-text");
+  const canvasViewport = document.getElementById("wf-canvas-viewport");
+
+  const applyCanvasZoom = () => {
+    if (canvasViewport) {
+      canvasViewport.style.transform = `scale(${workflowCanvasZoom})`;
+    }
+    if (zoomLevelText) {
+      zoomLevelText.textContent = Math.round(workflowCanvasZoom * 100) + "%";
+    }
+  };
+
+  if (btnZoomIn) {
+    btnZoomIn.addEventListener("click", () => {
+      workflowCanvasZoom = Math.min(workflowCanvasZoom + 0.1, 1.5);
+      applyCanvasZoom();
+      showToast("Zoom In applied.");
+    });
+  }
+
+  if (btnZoomOut) {
+    btnZoomOut.addEventListener("click", () => {
+      workflowCanvasZoom = Math.max(workflowCanvasZoom - 0.1, 0.5);
+      applyCanvasZoom();
+      showToast("Zoom Out applied.");
+    });
+  }
+
+  if (btnZoomReset) {
+    btnZoomReset.addEventListener("click", () => {
+      workflowCanvasZoom = 1.0;
+      applyCanvasZoom();
+      showToast("Zoom reset to 100%.");
     });
   }
 
