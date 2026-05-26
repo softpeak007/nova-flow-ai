@@ -1876,4 +1876,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Startup session trigger
   checkSession();
+
+  // Mobile Drawer Sidebar Navigation Controller
+  const mobileToggle = document.getElementById("mobile-sidebar-toggle");
+  const sidebar = document.querySelector(".sidebar");
+  
+  if (mobileToggle && sidebar) {
+    mobileToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sidebar.classList.toggle("open");
+    });
+    
+    // Close sidebar when clicking anywhere outside it on mobile screens
+    document.addEventListener("click", (e) => {
+      if (window.innerWidth <= 900 && sidebar.classList.contains("open")) {
+        if (!sidebar.contains(e.target) && e.target !== mobileToggle) {
+          sidebar.classList.remove("open");
+        }
+      }
+    });
+    
+    // Close sidebar drawer immediately when a navigation tab links is clicked
+    const menuLinks = sidebar.querySelectorAll(".menu-item");
+    menuLinks.forEach(link => {
+      link.addEventListener("click", () => {
+        if (window.innerWidth <= 900) {
+          sidebar.classList.remove("open");
+        }
+      });
+    });
+  }
 });
